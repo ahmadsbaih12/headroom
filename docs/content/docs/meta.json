@@ -39,6 +39,7 @@
     "autogen",
     "kong-ai-gateway",
     "litellm",
+    "freellmapi",
     "claude-code-vertex",
     "claude-code-azure-foundry",
     "vscode-claude-code",
