@@ -61,6 +61,7 @@ Disable it with `HEADROOM_BEACON=off`, `HEADROOM_TELEMETRY=off` (or `--no-teleme
 | `--budget` | None | Daily budget limit in USD |
 | `--openai-api-url` | `https://api.openai.com` | Custom OpenAI API URL |
 | `--provider-name` | Detected from `--openai-api-url` | Display name for the OpenAI-compatible upstream on the dashboard (e.g. `OpenRouter`). Well-known hosts (OpenRouter, Groq, Together, Azure OpenAI, …) are detected automatically; this overrides them. Routing and pricing are unaffected. |
+| `--freellmapi-url` | None | Use a [FreeLLMAPI](/docs/freellmapi) router as the upstream (e.g. `http://localhost:3001`): sets the OpenAI (`<url>/v1`) and Anthropic (`<url>`) upstreams and the provider name. Explicit `--openai-api-url` / `--anthropic-api-url` / `--provider-name` win |
 | `--anthropic-api-url` | Anthropic default | Custom Anthropic API URL |
 | `--gemini-api-url` | Gemini default | Custom Gemini API URL |
 | `--backend` | `anthropic` | Backend: `anthropic`, `bedrock`, `openrouter`, `anyllm`, or `litellm-<provider>` |

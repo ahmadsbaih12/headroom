@@ -17,14 +17,17 @@ client  ->  Headroom proxy (:8787)  ->  FreeLLMAPI (:3001)  ->  free providers
 2. Start the Headroom proxy with FreeLLMAPI as the upstream:
 
 ```bash
-headroom proxy \
-  --port 8787 \
+headroom proxy --port 8787 --freellmapi-url http://localhost:3001
+```
+
+`--freellmapi-url` sets the OpenAI upstream to `<url>/v1`, the Anthropic upstream to the bare origin (the Anthropic SDKs append `/v1/messages` themselves), and labels the dashboard provider "FreeLLMAPI". Explicit `--openai-api-url`, `--anthropic-api-url` and `--provider-name` still win, so the equivalent long form is:
+
+```bash
+headroom proxy --port 8787 \
   --openai-api-url http://localhost:3001/v1 \
   --anthropic-api-url http://localhost:3001 \
   --provider-name FreeLLMAPI
 ```
-
-`--openai-api-url` includes `/v1` (same as other OpenAI-compatible upstreams). `--anthropic-api-url` is the bare origin because the Anthropic SDKs append `/v1/messages` themselves.
 
 3. Point your client at Headroom and keep using the FreeLLMAPI unified key as the API key:
 
