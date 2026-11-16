@@ -83,6 +83,20 @@ def build_serena_spec(context: str) -> ServerSpec:
     )
 
 
+def build_graphify_spec() -> ServerSpec:
+    """Construct the canonical Graphify MCP server spec.
+
+    Runs ``graphify-mcp`` (stdio) from the ``graphifyy[mcp]`` PyPI package. With
+    no graph path it serves ``graphify-out/graph.json`` under the working
+    directory, so a project-scoped entry always answers for its own project.
+    """
+    return ServerSpec(
+        name="graphify",
+        command="uvx",
+        args=("--from", "graphifyy[mcp]", "graphify-mcp"),
+    )
+
+
 def install_everywhere(
     proxy_url: str = DEFAULT_PROXY_URL,
     *,

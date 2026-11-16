@@ -22,6 +22,7 @@ from .grok import GrokRegistrar
 from .install import (
     CLAUDE_SERENA_CONTEXT,
     DEFAULT_PROXY_URL,
+    build_graphify_spec,
     build_headroom_spec,
     build_serena_spec,
     get_all_registrars,
@@ -45,6 +46,7 @@ __all__ = [
     "ServerSpec",
     "any_succeeded",
     "build_headroom_spec",
+    "build_graphify_spec",
     "build_serena_spec",
     "build_server_json",
     "format_result",
