@@ -1,6 +1,7 @@
 #!/bin/bash
 # Installs Headroom + Graphify and starts the Headroom proxy at every session start (cloud only).
 set -euo pipefail
+echo '{"async": true, "asyncTimeout": 600000}'
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 export PATH="$HOME/.local/bin:$PATH"
 cd "${CLAUDE_PROJECT_DIR:-.}"
