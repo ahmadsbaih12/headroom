@@ -21,6 +21,16 @@ fi
 # Build/refresh the knowledge graph (AST only, no LLM); never block the session on failure
 timeout 240 graphify update . >/tmp/graphify-update.log 2>&1 || echo "graphify update skipped (see /tmp/graphify-update.log)" >&2
 
+# Wait (up to 90s) for the proxy; only route shell-launched clients through it once it is healthy
+for _ in $(seq 1 45); do
+  curl -fs -m 2 http://127.0.0.1:8787/health >/dev/null 2>&1 && HR_UP=1 && break
+  sleep 2
+done
+
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$CLAUDE_ENV_FILE"
+  if [ "${HR_UP:-}" = "1" ]; then
+    echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:8787"' >> "$CLAUDE_ENV_FILE"
+    echo 'export OPENAI_BASE_URL="http://127.0.0.1:8787/v1"' >> "$CLAUDE_ENV_FILE"
+  fi
 fi
