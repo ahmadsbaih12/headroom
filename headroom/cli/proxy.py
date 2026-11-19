@@ -1100,6 +1100,15 @@ def dashboard(port: int | None, no_open: bool) -> None:
     help="Custom OpenAI API URL for passthrough endpoints (env: OPENAI_TARGET_API_URL)",
 )
 @click.option(
+    "--freellmapi-url",
+    default=None,
+    help=(
+        "Use a FreeLLMAPI router as the upstream, e.g. http://localhost:3001. Sets the OpenAI "
+        "(<url>/v1) and Anthropic (<url>) upstreams and the dashboard provider name; explicit "
+        "--openai-api-url / --anthropic-api-url / --provider-name win."
+    ),
+)
+@click.option(
     "--provider-name",
     default=None,
     help=(
@@ -1296,6 +1305,7 @@ def proxy(
     anthropic_extra_headers: str | None,
     openai_extra_headers: str | None,
     openai_api_url: str | None,
+    freellmapi_url: str | None,
     provider_name: str | None,
     gemini_api_url: str | None,
     cloudcode_api_url: str | None,
@@ -1452,6 +1462,15 @@ def proxy(
     except ValueError as exc:
         click.secho(f"error: {exc}", fg="red", err=True)
         sys.exit(1)
+
+    from headroom.proxy.helpers import resolve_freellmapi_upstream
+
+    anthropic_api_url, openai_api_url, provider_name = resolve_freellmapi_upstream(
+        freellmapi_url,
+        anthropic_api_url=anthropic_api_url,
+        openai_api_url=openai_api_url,
+        provider_name=provider_name,
+    )
 
     provider_api_overrides = resolve_api_overrides(
         anthropic_api_url=anthropic_api_url,

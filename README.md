@@ -721,8 +721,11 @@ Headroom is the proxy, and it compresses everything flowing through it whatever
 sits upstream. Our recommended companion is
 **[Serena](https://github.com/oraios/serena)** for semantic code navigation,
 installed with `headroom wrap --code-memory serena`, plus **Ponytail** if you want leaner
-model output. Everything else is your call — attach a code-memory MCP, Graphify,
-Caveman, or any other MCP server, and Headroom compresses downstream of all of it.
+model output. **[Graphify](https://github.com/Graphify-Labs/graphify)** (a queryable knowledge
+graph of your project) is also built in: `headroom wrap claude --code-memory graphify` registers
+its MCP server for the project (run `/graphify .` once to build `graphify-out/graph.json`).
+Everything else is your call — Caveman or any other MCP server — and Headroom compresses
+downstream of all of it.
 
 ## Contributing
 

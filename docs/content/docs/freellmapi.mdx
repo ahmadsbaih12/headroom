@@ -1,0 +1,51 @@
+---
+title: FreeLLMAPI
+description: Put Headroom in front of FreeLLMAPI, a self-hosted router that stacks free LLM tiers behind one OpenAI-compatible endpoint.
+---
+
+[FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) is a self-hosted router that aggregates free-tier LLM providers behind a single OpenAI-compatible `/v1` API (it also serves the Anthropic Messages API at `/v1/messages`). Headroom is the proxy in front of it: your client talks to Headroom, Headroom compresses the request, and FreeLLMAPI picks the provider.
+
+Free tiers are capped by tokens per minute and per month, so compressing context stretches them further.
+
+```text
+client  ->  Headroom proxy (:8787)  ->  FreeLLMAPI (:3001)  ->  free providers
+```
+
+## Setup
+
+1. Run FreeLLMAPI and copy the unified API key from its **Keys** page (see its [install guide](https://github.com/tashfeenahmed/freellmapi#quick-start)). By default it listens on `http://localhost:3001`.
+2. Start the Headroom proxy with FreeLLMAPI as the upstream:
+
+```bash
+headroom proxy --port 8787 --freellmapi-url http://localhost:3001
+```
+
+`--freellmapi-url` sets the OpenAI upstream to `<url>/v1`, the Anthropic upstream to the bare origin (the Anthropic SDKs append `/v1/messages` themselves), and labels the dashboard provider "FreeLLMAPI". Explicit `--openai-api-url`, `--anthropic-api-url` and `--provider-name` still win, so the equivalent long form is:
+
+```bash
+headroom proxy --port 8787 \
+  --openai-api-url http://localhost:3001/v1 \
+  --anthropic-api-url http://localhost:3001 \
+  --provider-name FreeLLMAPI
+```
+
+3. Point your client at Headroom and keep using the FreeLLMAPI unified key as the API key:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8787/v1", api_key="<freellmapi-unified-key>")
+```
+
+For Claude Code:
+
+```bash
+ANTHROPIC_BASE_URL=http://127.0.0.1:8787 ANTHROPIC_API_KEY=<freellmapi-unified-key> claude
+```
+
+## Notes
+
+- Model ids are FreeLLMAPI's, not the upstream provider's. `GET /v1/models` through the proxy lists what your router exposes; FreeLLMAPI maps `claude-*` ids to your free models.
+- FreeLLMAPI has its own prompt-compression pipeline. Running both compresses twice; if you only want one, disable it on one side.
+- Like any schema-translating upstream, this route is not claimed to preserve Claude Code's server-side auto-mode classifier protocol (see the note on [LiteLLM](/docs/litellm)).
+- Not verified end to end against a live FreeLLMAPI install; check `curl http://127.0.0.1:8787/health` and a test request before relying on it.

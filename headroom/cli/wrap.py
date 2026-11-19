@@ -1225,14 +1225,15 @@ _serena_instructions_option = click.option(
 
 
 # --- Code-memory MCP selection ------------------------------------------------
-# No code-memory MCP is registered by default; opt into Serena with --code-memory serena.
+# No code-memory MCP is registered by default; opt into Serena or Graphify with --code-memory.
 # Selection flows through HEADROOM_CODE_MEMORY (set by the eager --code-memory
 # callback) so it works the same on every agent without threading a param
 # through each subcommand — the same approach as _serena_instructions_option above.
 _CODE_MEMORY_ENV = "HEADROOM_CODE_MEMORY"
 _CODE_MEMORY_SERENA = "serena"
+_CODE_MEMORY_GRAPHIFY = "graphify"
 _CODE_MEMORY_NONE = "none"
-_VALID_CODE_MEMORY = {_CODE_MEMORY_SERENA, _CODE_MEMORY_NONE}
+_VALID_CODE_MEMORY = {_CODE_MEMORY_SERENA, _CODE_MEMORY_GRAPHIFY, _CODE_MEMORY_NONE}
 
 
 def _resolve_code_memory(kwargs: dict[str, Any]) -> str:
@@ -1274,13 +1275,13 @@ def _code_memory_flag_callback(ctx: Any, param: Any, value: str | None) -> str |
 # through HEADROOM_CODE_MEMORY.
 _code_memory_option = click.option(
     "--code-memory",
-    type=click.Choice([_CODE_MEMORY_SERENA, _CODE_MEMORY_NONE]),
+    type=click.Choice([_CODE_MEMORY_SERENA, _CODE_MEMORY_GRAPHIFY, _CODE_MEMORY_NONE]),
     default=None,
     expose_value=False,
     is_eager=True,
     callback=_code_memory_flag_callback,
     help=(
-        "Code-memory MCP to register: 'none' (default) or 'serena'. "
+        "Code-memory MCP to register: 'none' (default), 'serena' or 'graphify'. "
         "Also set by HEADROOM_CODE_MEMORY. Replaces --serena/--no-serena."
     ),
 )
@@ -3047,11 +3048,11 @@ def _retire_user_scope_serena(registrar: Any) -> None:
         )
 
 
-def _remove_headroom_installed_serena_mcp(registrar: Any) -> str:
-    """Remove Serena MCP only if the ledger proves Headroom installed it."""
+def _remove_headroom_installed_serena_mcp(registrar: Any, name: str = "serena") -> str:
+    """Remove a code-memory MCP (Serena by default) only if the ledger proves Headroom installed it."""
     from headroom.mcp_registry.ledger import clear_install, headroom_installed_matching
 
-    # Claude can own one Serena entry per project plus a legacy user entry.
+    # Claude can own one entry per project plus a legacy user entry.
     # Examine each relevant scope independently: an unscoped delete would
     # remove entries whose scope-specific ledger record did not authorize it.
     if hasattr(registrar, "ownership_key"):
@@ -3059,28 +3060,28 @@ def _remove_headroom_installed_serena_mcp(registrar: Any) -> str:
 
         found_owned = False
         for scope in (SCOPE_LOCAL, SCOPE_USER):
-            current = registrar.get_server("serena", scope=scope)
-            ownership_key = registrar.ownership_key("serena", scope=scope)
+            current = registrar.get_server(name, scope=scope)
+            ownership_key = registrar.ownership_key(name, scope=scope)
             if current is None:
                 # Nothing left to protect — an ownership record must not
                 # outlive the entry it authorized.
-                clear_install(registrar.name, "serena", ownership_key=ownership_key)
+                clear_install(registrar.name, name, ownership_key=ownership_key)
                 continue
             if not headroom_installed_matching(
                 registrar.name, current, ownership_key=ownership_key
             ):
                 continue
             found_owned = True
-            if not registrar.unregister_server("serena", scope=scope):
+            if not registrar.unregister_server(name, scope=scope):
                 return "failed"
-            clear_install(registrar.name, "serena", ownership_key=ownership_key)
+            clear_install(registrar.name, name, ownership_key=ownership_key)
         return "removed" if found_owned else "not_headroom_owned"
 
-    current = registrar.get_server("serena")
+    current = registrar.get_server(name)
     if not headroom_installed_matching(registrar.name, current):
         return "not_headroom_owned"
-    if registrar.unregister_server("serena"):
-        clear_install(registrar.name, "serena")
+    if registrar.unregister_server(name):
+        clear_install(registrar.name, name)
         return "removed"
     return "failed"
 
@@ -3125,6 +3126,77 @@ def _disable_serena_mcp(registrar: Any, *, verbose: bool = False, explicit: bool
         click.echo(
             "  Serena MCP: removal failed — remove the 'serena' entry from your MCP config manually"
         )
+
+
+def _setup_graphify_mcp(registrar: Any, *, verbose: bool = False, force: bool = False) -> None:
+    """Register the Graphify knowledge-graph MCP server with the agent (idempotent).
+
+    Graphify serves ``graphify-out/graph.json`` of the current project, so the
+    entry is project-scoped on Claude Code. The graph itself is built by
+    ``graphify`` (``/graphify .`` in the agent); until it exists the server has
+    nothing to answer, so we say so instead of building it implicitly.
+    """
+    from headroom.mcp_registry import build_graphify_spec, format_result
+    from headroom.mcp_registry.base import RegisterStatus
+    from headroom.mcp_registry.ledger import headroom_installed_matching, record_install
+
+    ownership_key = getattr(registrar, "ownership_key", lambda name: name)("graphify")
+
+    if not registrar.detect():
+        if verbose:
+            click.echo(f"  Graphify MCP: {registrar.display_name} not detected — skipping")
+        return
+    if shutil.which("uvx") is None:
+        click.echo("  Graphify MCP: uvx not found — install uv/uvx to enable Graphify; skipping")
+        return
+
+    spec = build_graphify_spec()
+    result = registrar.register_server(spec, force=force)
+    owned_drift = (
+        result.status == RegisterStatus.MISMATCH
+        and not force
+        and headroom_installed_matching(
+            registrar.name, registrar.get_server("graphify"), ownership_key=ownership_key
+        )
+    )
+    if owned_drift:
+        result = registrar.register_server(spec, force=True)
+    if result.status == RegisterStatus.REGISTERED:
+        record_install(registrar.name, spec, ownership_key=ownership_key)
+
+    line = format_result(
+        registrar.name,
+        result,
+        label="Graphify MCP",
+        verbose=verbose,
+        overwrite_hint=(
+            "run headroom wrap again"
+            if owned_drift
+            else "update or remove the existing graphify MCP entry, then rerun headroom wrap"
+        ),
+        restart_hint=f"restart {registrar.display_name} if it was already running",
+    )
+    if line is not None:
+        click.echo(line)
+
+    if result.ok and not (Path.cwd() / "graphify-out" / "graph.json").exists():
+        click.echo("    no graphify-out/graph.json yet — run `/graphify .` once to build the graph")
+
+
+def _disable_graphify_mcp(registrar: Any, *, verbose: bool = False) -> None:
+    """Remove a Graphify entry Headroom installed; user-managed entries stay."""
+    if not registrar.detect() or registrar.get_server("graphify") is None:
+        return
+    status = _remove_headroom_installed_serena_mcp(registrar, "graphify")
+    if status == "removed":
+        click.echo("  Removed previously-installed Graphify MCP (not selected via --code-memory)")
+        click.echo(f"    restart {registrar.display_name} if it was already running")
+    elif status == "failed":
+        click.echo(
+            "  Graphify MCP: removal failed — remove the 'graphify' entry from your MCP config manually"
+        )
+    elif verbose:
+        click.echo("  Graphify MCP is user-managed — leaving it in place")
 
 
 # =============================================================================
@@ -3220,8 +3292,16 @@ def _setup_coding_compressor(registrar: Any, *, serena_context: str, **kwargs: A
 
     if selection == _CODE_MEMORY_NONE:
         _disable_serena_mcp(registrar, verbose=verbose, explicit=_code_memory_opted_out(kwargs))
+        _disable_graphify_mcp(registrar, verbose=verbose)
         return
 
+    if selection == _CODE_MEMORY_GRAPHIFY:
+        # One code-memory engine at a time: drop a Headroom-installed Serena.
+        _remove_headroom_installed_serena_mcp(registrar)
+        _setup_graphify_mcp(registrar, verbose=verbose, force=force)
+        return
+
+    _disable_graphify_mcp(registrar, verbose=verbose)
     _setup_serena_mcp(registrar, context=serena_context, verbose=verbose, force=force)
 
 

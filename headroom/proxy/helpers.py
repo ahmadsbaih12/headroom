@@ -1370,6 +1370,7 @@ _OPENAI_COMPATIBLE_HOSTS: tuple[tuple[str, str], ...] = (
     ("api.deepseek.com", "DeepSeek"),
     ("api.mistral.ai", "Mistral"),
     ("api.perplexity.ai", "Perplexity"),
+    ("freellmapi.co", "FreeLLMAPI"),
     ("openai.azure.com", "Azure OpenAI"),
     ("api.openai.com", "OpenAI"),
 )
@@ -1397,6 +1398,38 @@ def classify_openai_upstream(url: str | None) -> str | None:
         if host == needle or host.endswith("." + needle):
             return name
     return None
+
+
+FREELLMAPI_PROVIDER_NAME = "FreeLLMAPI"
+FREELLMAPI_DEFAULT_URL = "http://localhost:3001"
+
+
+def resolve_freellmapi_upstream(
+    freellmapi_url: str | None,
+    *,
+    anthropic_api_url: str | None,
+    openai_api_url: str | None,
+    provider_name: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    """Expand ``--freellmapi-url`` into the proxy's upstream settings.
+
+    `FreeLLMAPI <https://github.com/tashfeenahmed/freellmapi>`_ serves the
+    OpenAI API under ``<origin>/v1`` and the Anthropic Messages API at the bare
+    origin, so one base URL sets both upstreams. Explicit ``--openai-api-url``,
+    ``--anthropic-api-url`` and ``--provider-name`` values always win. Returns
+    ``(anthropic_api_url, openai_api_url, provider_name)``; with no
+    ``freellmapi_url`` the inputs are returned unchanged.
+    """
+    if not freellmapi_url:
+        return anthropic_api_url, openai_api_url, provider_name
+    origin = freellmapi_url.strip().rstrip("/")
+    if origin.endswith("/v1"):
+        origin = origin[: -len("/v1")]
+    return (
+        anthropic_api_url or origin,
+        openai_api_url or f"{origin}/v1",
+        provider_name or FREELLMAPI_PROVIDER_NAME,
+    )
 
 
 def resolve_display_provider(
