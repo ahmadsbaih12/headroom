@@ -17,6 +17,9 @@ if ! (exec 3<>/dev/tcp/127.0.0.1/8787) 2>/dev/null; then
   disown || true
 fi
 
+# Build/refresh the knowledge graph (AST only, no LLM); never block the session on failure
+timeout 240 graphify update . >/tmp/graphify-update.log 2>&1 || echo "graphify update skipped (see /tmp/graphify-update.log)" >&2
+
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$CLAUDE_ENV_FILE"
 fi
